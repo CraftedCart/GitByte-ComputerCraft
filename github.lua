@@ -125,7 +125,7 @@ function showProfile(username)
 			profileResCode = webData.getResponseCode()
 			webData.close()
 		else
-			showError("Unknown, probably 404")
+			showError("Unknown")
 			return
 		end
 
@@ -143,7 +143,7 @@ function showProfile(username)
 			repoResCode = webData.getResponseCode()
 			webData.close()
 		else
-			showError("Unknown, probably 404")
+			showError("Unknown")
 			return
 		end
 
@@ -235,7 +235,7 @@ function showSearch(query, kind)
 	term.setTextColor(uiCol["sideheading"])
 	term.write(" " .. tostring(searchData["total_count"]) .. " results")
 
-	--Display Repos
+	--Display search results
 	for k, v in pairs(searchData["items"]) do
 		if k + 3 == h - 1 then
 			break
@@ -267,6 +267,10 @@ function showSearch(query, kind)
 			term.write(v["repository"]["name"]) --Display Repo Name
 			term.setTextColor(uiCol["txt"])
 			term.write("/" .. v["path"])
+		elseif kind == "users" then --User Search
+			term.setCursorPos(2, k + 3)
+			term.setTextColor(uiCol["username"])
+			term.write(v["login"]) --Display Username
 		end
 	end
 end
