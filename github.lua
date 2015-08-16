@@ -117,42 +117,40 @@ username - String - Required
 function showProfile(username)
 	showLoading()
 
-	function getData()
-		--Get profile data from Github's API
-		webData = http.get("https://api.github.com/users/" .. username)
-		if webData then
-			profileData = json:decode(webData.readAll())
-			profileResCode = webData.getResponseCode()
-			webData.close()
-		else
-			showError("Unknown")
-			return
-		end
+	--Get profile data from Github's API
+	webData = http.get("https://api.github.com/users/" .. username)
+	if webData then
+		profileData = json:decode(webData.readAll())
+		profileResCode = webData.getResponseCode()
+		webData.close()
+	else
+		showError("Unknown")
+		return
+	end
 
-		--Check if the response is ok
-		if profileResCode ~= 200 then
-			--Error
-			showError(profileResCode)
-			return
-		end
+	--Check if the response is ok
+	if profileResCode ~= 200 then
+		--Error
+		showError(profileResCode)
+		return
+	end
 
-		--Get profile repo data from Github's API
-		webData = http.get("https://api.github.com/users/" .. username .. "/repos")
-		if webData then
-			repoData = json:decode(webData.readAll())
-			repoResCode = webData.getResponseCode()
-			webData.close()
-		else
-			showError("Unknown")
-			return
-		end
+	--Get profile repo data from Github's API
+	webData = http.get("https://api.github.com/users/" .. username .. "/repos")
+	if webData then
+		repoData = json:decode(webData.readAll())
+		repoResCode = webData.getResponseCode()
+		webData.close()
+	else
+		showError("Unknown")
+		return
+	end
 
-		--Check if the response is ok
-		if repoResCode ~= 200 then
-			--Error
-			showError(repoResCode)
-			return
-		end
+	--Check if the response is ok
+	if repoResCode ~= 200 then
+		--Error
+		showError(repoResCode)
+		return
 	end
 
 	showBg()
@@ -273,6 +271,20 @@ function showSearch(query, kind)
 			term.write(v["login"]) --Display Username
 		end
 	end
+
+	while true do
+		e, btn, x, y = os.pullEvent()
+		if e == "mouse_click" then
+			if x >=2 and x <= w - 1 and y >= 4 and y <= h - 3 then
+				--User clicked an entry
+				if kind == "users" and searchData["items"][y - 3] then
+					--If users search and entry exists
+					showProfile(searchData["items"][y - 3]["login"])
+					break
+				end
+			end
+		end
+	end
 end
 
 function askSearch(kind)
@@ -346,7 +358,9 @@ function main()
 end
 
 --Prevent non printable characters from crashing the program
-oldTermWrite = term.write
+if not oldTermWrite then
+	oldTermWrite = term.write
+end
 function term.write(text)
 	oldTermWrite(safeString(text))
 end
