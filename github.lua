@@ -14,6 +14,8 @@ uiCol = {
 	["repository"] = colors.purple,
 	["navbarBg"] = colors.blue,
 	["navbarTxt"] = colors.white,
+	["btnBg"] = colors.lightBlue,
+	["btnTxt"] = colors.black,
 }
 
 --[[
@@ -26,18 +28,46 @@ String
 	The corrected string
 ]]
 function firstToUpper(str)
-    return (str:gsub("^%l", string.upper))
+	return (str:gsub("^%l", string.upper))
 end
 
+--[[
+PARAMETERS
+str - String - Required
+	Only allows permitted characters, prevents CC from crashing with non printable characters
+RETURNS
+	The amended string without non printable characters
+]]
+function safeString(text)
+	local newText = {}
+	for i = 1, #text do
+			local val = text:byte(i)
+			newText[i] = (val > 31 and val < 127) and val or 63
+	end
+	return string.char(unpack(newText))
+end
+
+--Loads the JSON parser
+--It the JSON parser doesn't exist, it downloads it
 function getDependencies()
 	--Get JSON Parser
+	--TODO: Dependencies - Change URL to use stable branch once that exists
 	if not fs.exists("CraftedCart/dependencies/jsonParser.lua")then
 		showLoading("Downloading jf-json dependency")
-		webData = http.get("http://regex.info/code/JSON.lua")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/dependencies/jsonParser.lua")
 		file = fs.open("CraftedCart/dependencies/jsonParser.lua", "w")
 		file.write(webData.readAll())
 		file.close()
 	end
+
+	if not fs.exists("CraftedCart/images/octocat")then
+		showLoading("Downloading octocat image")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/images/octocat")
+		file = fs.open("CraftedCart/images/octocat", "w")
+		file.write(webData.readAll())
+		file.close()
+	end
+
 	json = (loadfile "CraftedCart/dependencies/jsonParser.lua")()
 end
 
@@ -52,7 +82,13 @@ function showBg()
 	term.setBackgroundColor(uiCol["navbarBg"])
 	term.setTextColor(uiCol["navbarTxt"])
 	term.clearLine()
+	term.setBackgroundColor(uiCol["btnBg"])
+	term.setTextColor(uiCol["btnTxt"])
 	term.write("Search")
+
+	--Change to default colours
+	term.setBackgroundColor(uiCol["bg"])
+	term.setTextColor(uiCol["txt"])
 end
 
 --[[
@@ -77,6 +113,7 @@ PARAMETERS
 username - String - Required
 	The username of the profile you want to get
 ]]
+--TODO: Profile - Add clickable repos
 function showProfile(username)
 	showLoading()
 
@@ -234,17 +271,21 @@ function showSearch(query, kind)
 	end
 end
 
-function askSearch()
+function askSearch(kind)
 	showBg()
-	term.setCursorPos(2, 3)
-	term.setTextColor(uiCol["heading"])
-	term.write("Enter search query")
-	term.setCursorPos(1, 4)
-	term.setBackgroundColor(uiCol["textboxBg"])
-	term.setTextColor(uiCol["textboxTxt"])
-	term.clearLine()
-	query = read()
-	showSearch(query, "code")
+	if kind then
+		term.setCursorPos(2, 3)
+		term.setTextColor(uiCol["heading"])
+		term.write("Search " .. firstToUpper(kind))
+		term.setCursorPos(1, 4)
+		term.setBackgroundColor(uiCol["textboxBg"])
+		term.setTextColor(uiCol["textboxTxt"])
+		term.clearLine()
+		query = read()
+		showSearch(query, kind)
+	else
+		--TODO: Search - Menu system for selecting kind of search
+	end
 end
 
 --[[
@@ -261,8 +302,7 @@ function showError(resCode)
 	term.write("Error " .. tostring(resCode))
 end
 
-function main()
-	getDependencies()
+function homeMenu()
 	showBg()
 	octocat = paintutils.loadImage("CraftedCart/images/octocat")
 	paintutils.drawImage(octocat, 2, 3)
@@ -274,6 +314,38 @@ function main()
 	term.write("Gitter")
 	term.setCursorPos(26, 5)
 	term.write("Github client")
+	term.setCursorPos(26, 7)
+	term.setBackgroundColor(uiCol["btnBg"])
+	term.setTextColor(uiCol["btnTxt"])
+	term.write(" Search for Repos ")
+	term.setCursorPos(26, 9)
+	term.write(" Search for Users ")
+
+	--Get user input
+	while true do
+		e, btn, x, y = os.pullEvent()
+		if e == "mouse_click" then
+			--Detect if button was clicked on
+			if x >= 26 and x <= 43 and y == 7 then
+				--User clicked on search for repos
+				askSearch("repositories")
+			elseif x >= 26 and x <= 43 and y == 9 then
+				askSearch("users")
+			end
+		end
+	end
 end
 
+function main()
+	getDependencies()
+	homeMenu()
+end
+
+--Prevent non printable characters from crashing the program
+oldTermWrite = term.write
+function term.write(text)
+	oldTermWrite(safeString(text))
+end
+
+--Start the whole program
 main()

@@ -5,7 +5,7 @@ Hello there! This is the code repository for CraftedCart's Gtihub client for the
 
 Feel free to contribute. Fork this project and send a pull request when you're done. Please detail what changes you've done and documenting your code would be much appreciated
 
-You may find some tasks todo with `TODO:` written in a comment in the code  
+You may find some tasks todo with `TODO:` written in a comment in the code
 I recommend using the Sublime Text plugin TodoReview to find and list these
 
 I do try to document my code, however if you aren't sure about what a certain aspect does, feel free to submit an issue
