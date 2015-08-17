@@ -20,7 +20,7 @@ local uiCol = {
 }
 
 --Other Variables
-local versionNumber = 7 --TODO: Change whenever I push out a new commit
+local versionNumber = 8 --TODO: Change whenever I push out a new commit
 local version = "Public Alpha"
 local branch = "dev"
 local owner = "CraftedCart"
@@ -392,7 +392,7 @@ function showAbout() --The about page
 		term.write(v)
 	end
 	while true do
-		e, btn, x, y = os.pullevent()
+		e, btn, x, y = os.pullEvent()
 		interceptAction(e, btn, x, y)
 	end
 end
