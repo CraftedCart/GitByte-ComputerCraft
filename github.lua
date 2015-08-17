@@ -2,12 +2,11 @@
 --Created by CraftedCart
 
 --Colour Preferences
-uiCol = {
+local uiCol = {
 	["bg"] = colors.white,
 	["txt"] = colors.black,
 	["sidetxt"] = colors.lightGray,
 	["heading"] = colors.red,
-	["sideheading"] = colors.pink,
 	["username"] = colors.blue,
 	["textboxBg"] = colors.lightGray,
 	["textboxTxt"] = colors.black,
@@ -16,7 +15,20 @@ uiCol = {
 	["navbarTxt"] = colors.white,
 	["btnBg"] = colors.lightBlue,
 	["btnTxt"] = colors.black,
+	["alertBg"] = colors.yellow,
+	["alertTxt"] = colors.black,
 }
+
+--Other Variables
+local versionNumber = 6 --TODO: Change whenever I push out a new commit
+local version = "Public Alpha"
+local branch = "dev"
+local owner = "CraftedCart"
+local website = "github.com/CraftedCart/Gitter-ComputerCraft"
+local contributors = {
+	"Jeffrey Friedl for providing jf-json"
+}
+
 
 --[[
 PARAMETERS
@@ -71,8 +83,6 @@ function getDependencies()
 	json = (loadfile "CraftedCart/dependencies/jsonParser.lua")()
 end
 
-w, h = term.getSize()
-
 function showBg()
 	term.setBackgroundColor(uiCol["bg"])
 	term.setTextColor(uiCol["txt"])
@@ -82,9 +92,14 @@ function showBg()
 	term.setBackgroundColor(uiCol["navbarBg"])
 	term.setTextColor(uiCol["navbarTxt"])
 	term.clearLine()
+	term.write("Gitter ")
 	term.setBackgroundColor(uiCol["btnBg"])
 	term.setTextColor(uiCol["btnTxt"])
-	term.write("Search")
+	term.write("Home")
+	term.setCursorPos(14, 1)
+	term.write("Search Repos")
+	term.setCursorPos(27, 1)
+	term.write("Search Users")
 
 	--Change to default colours
 	term.setBackgroundColor(uiCol["bg"])
@@ -97,15 +112,18 @@ msg - String - Optional
 	Will replace the default message is present
 ]]
 function showLoading(msg)
-	term.setBackgroundColor(uiCol["bg"])
-	term.setTextColor(uiCol["txt"])
-	term.clear()
-	term.setCursorPos(2, 2)
+	term.setBackgroundColor(uiCol["alertBg"])
+	term.setTextColor(uiCol["alertTxt"])
+	term.setCursorPos(2, h)
+	term.clearLine()
 	if msg then
 		term.write(msg)
 	else
 		term.write("Fetching data... Hold on for a few moments")
 	end
+
+	term.setBackgroundColor(uiCol["bg"])
+	term.setTextColor(uiCol["txt"])
 end
 
 --[[
@@ -191,6 +209,11 @@ function showProfile(username)
 			end
 		end
 	end
+
+	while true do
+		e, btn, x, y= os.pullevent()
+		interceptAction(e, btn, x, y)
+	end
 end
 
 --[[
@@ -201,14 +224,13 @@ kind - String - Required
 	The kind of search you want to do - Can be "repositories", "code", "issues", "users"
 ]]
 --TODO: Search - Add issues search
---TODO: Search - Add users search
 --TODO: Search - Add pages/scrolling
---TODO: Search - Make results clickable
+--TODO: Search - Make results clickable - Done for users
 function showSearch(query, kind)
 	showLoading()
 
-	--Get profile data from Github's API
-	webData = http.get("https://api.github.com/search/" .. kind .. "?q=" .. textutils.urlEncode(query))
+	--Get 100 entries of search data from Github's API
+	webData = http.get("https://api.github.com/search/" .. kind .. "?per_page=100&q=" .. textutils.urlEncode(query))
 	if webData then
 		searchData = json:decode(webData.readAll())
 		searchResCode = webData.getResponseCode()
@@ -227,11 +249,34 @@ function showSearch(query, kind)
 
 	showBg()
 
+	--Define some variables for pagination
+	local itemsPerPage = h - 6
+	local offset = 0
+
 	term.setCursorPos(2, 3)
 	term.setTextColor(uiCol["heading"])
 	term.write(firstToUpper(kind) .. " Search: " .. query)
-	term.setTextColor(uiCol["sideheading"])
-	term.write(" " .. tostring(searchData["total_count"]) .. " results")
+
+	term.setCursorPos(2, h)
+	term.setBackgroundColor(uiCol["navbarBg"])
+	term.setTextColor(uiCol["navbarTxt"])
+	term.clearLine()
+
+	term.write("Showing items ")
+	if searchData["total_count"] < offset + 1 then
+		term.write(tostring(searchData["total_count"]))
+	else
+		term.write(tostring(offset + 1))
+	end
+	term.write(" - ")
+	if searchData["total_count"] < offset + itemsPerPage + 1 then
+		term.write(tostring(searchData["total_count"]))
+	else
+		term.write(tostring(offset + itemsPerPage + 1))
+	end
+	term.write(" / " .. tostring(searchData["total_count"]))
+
+	term.setBackgroundColor(uiCol["bg"])
 
 	--Display search results
 	for k, v in pairs(searchData["items"]) do
@@ -274,6 +319,7 @@ function showSearch(query, kind)
 
 	while true do
 		e, btn, x, y = os.pullEvent()
+		interceptAction(e, btn, x, y)
 		if e == "mouse_click" then
 			if x >=2 and x <= w - 1 and y >= 4 and y <= h - 3 then
 				--User clicked an entry
@@ -316,6 +362,66 @@ function showError(resCode)
 	term.write("Oh No!")
 	term.setCursorPos(2, 5)
 	term.write("Error " .. tostring(resCode))
+
+	while true do
+		e, btn, x, y = os.pullevent()
+		interceptAction(e, btn, x, y)
+	end
+end
+
+function showAbout() --The about page
+	showBg()
+	term.setCursorPos(2, 3)
+	term.setTextColor(uiCol["heading"])
+	term.write("Gitter " .. version)
+	term.setTextColor(uiCol["sidetxt"])
+	term.write(" #" .. versionNumber)
+	term.setCursorPos(2, 4)
+	term.setTextColor(uiCol["txt"])
+	term.write("Branch: " .. branch)
+	term.setCursorPos(2, 5)
+	term.write(website)
+	term.setCursorPos(2, 7)
+	term.write("By " .. owner)
+	term.setCursorPos(2, 9)
+	term.setTextColor(uiCol["heading"])
+	term.write("Contributors")
+	term.setTextColor(uiCol["txt"])
+	for k, v in pairs(contributors) do
+		term.setCursorPos(2, k + 9)
+		term.write(v)
+	end
+	while true do
+		e, btn, x, y = os.pullevent()
+		interceptAction(e, btn, x, y)
+	end
+end
+
+--[[
+PARAMETERS
+e
+	The event that happened - Required
+btn
+	The mouse button that was clicked - Pointless at the moment
+x
+	The x pos of the mouse - Required
+y
+	The y pos of the mouse - Required
+--Basically, pass it the variables that os.pullEvent() does
+]]
+function interceptAction(e, btn, x, y)
+	if e == "mouse_click" then
+		if x >= 9 and x <= 12 and y == 1 then
+			--User clicked the home button
+			homeMenu()
+		elseif x >= 14 and x <= 25 and y == 1 then
+			--User clicked the search repos button
+			askSearch("repositories")
+		elseif x >= 27 and x <= 38 then
+			--User clicked the search users button
+			askSearch("users")
+		end
+	end
 end
 
 function homeMenu()
@@ -336,23 +442,34 @@ function homeMenu()
 	term.write(" Search for Repos ")
 	term.setCursorPos(26, 9)
 	term.write(" Search for Users ")
+	term.setCursorPos(26, h - 1)
+	term.write(" About Gitter     ")
 
 	--Get user input
 	while true do
 		e, btn, x, y = os.pullEvent()
+		interceptAction(e, btn, x, y)
 		if e == "mouse_click" then
 			--Detect if button was clicked on
 			if x >= 26 and x <= 43 and y == 7 then
 				--User clicked on search for repos
 				askSearch("repositories")
 			elseif x >= 26 and x <= 43 and y == 9 then
+				--User clicked on search for repos
 				askSearch("users")
+			elseif x >= 26 and x <= 43 and y == h - 1 then
+				--User clicked on about Gitter
+				showAbout()
 			end
 		end
 	end
 end
 
 function main()
+	w, h = term.getSize()
+
+	term.setBackgroundColor(uiCol["bg"])
+	term.clear()
 	getDependencies()
 	homeMenu()
 end
