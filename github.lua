@@ -20,7 +20,7 @@ local uiCol = {
 }
 
 --Other Variables
-local versionNumber = 6 --TODO: Change whenever I push out a new commit
+local versionNumber = 7 --TODO: Change whenever I push out a new commit
 local version = "Public Alpha"
 local branch = "dev"
 local owner = "CraftedCart"
@@ -417,7 +417,7 @@ function interceptAction(e, btn, x, y)
 		elseif x >= 14 and x <= 25 and y == 1 then
 			--User clicked the search repos button
 			askSearch("repositories")
-		elseif x >= 27 and x <= 38 then
+		elseif x >= 27 and x <= 38 and y == 1 then
 			--User clicked the search users button
 			askSearch("users")
 		end
