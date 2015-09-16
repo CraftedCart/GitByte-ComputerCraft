@@ -20,7 +20,7 @@ local uiCol = {
 }
 
 --Other Variables
-local versionNumber = 8 --TODO: Change whenever I push out a new commit
+local versionNumber = 9 --TODO: Change whenever I push out a new commit
 local version = "Public Alpha"
 local branch = "dev"
 local owner = "CraftedCart"
@@ -64,23 +64,25 @@ end
 function getDependencies()
 	--Get JSON Parser
 	--TODO: Dependencies - Change URL to use stable branch once that exists
-	if not fs.exists("CraftedCart/dependencies/jsonParser.lua")then
-		showLoading("Downloading jf-json dependency")
-		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/dependencies/jsonParser.lua")
-		file = fs.open("CraftedCart/dependencies/jsonParser.lua", "w")
+	--TODO: Split this function into a separate API
+	if not fs.exists("CraftedCart/api/jsonParser.lua")then
+		showLoading("Downloading jf-json API")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/api/jsonParser.lua")
+		file = fs.open("CraftedCart/api/jsonParser.lua", "w")
 		file.write(webData.readAll())
 		file.close()
 	end
 
-	if not fs.exists("CraftedCart/images/octocat")then
+	--Get Octocat image
+	if not fs.exists("CraftedCart/img/octocat")then
 		showLoading("Downloading octocat image")
-		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/images/octocat")
-		file = fs.open("CraftedCart/images/octocat", "w")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/img/octocat")
+		file = fs.open("CraftedCart/img/octocat", "w")
 		file.write(webData.readAll())
 		file.close()
 	end
 
-	json = (loadfile "CraftedCart/dependencies/jsonParser.lua")()
+	json = (loadfile "CraftedCart/api/jsonParser.lua")()
 end
 
 function showBg()
@@ -211,7 +213,7 @@ function showProfile(username)
 	end
 
 	while true do
-		e, btn, x, y= os.pullevent()
+		e, btn, x, y = os.pullEvent()
 		interceptAction(e, btn, x, y)
 	end
 end
@@ -339,6 +341,11 @@ function askSearch(kind)
 		term.setCursorPos(2, 3)
 		term.setTextColor(uiCol["heading"])
 		term.write("Search " .. firstToUpper(kind))
+		if kind == "repositories" then
+			paintutils.drawImage(repoIcon, 2, 6)
+		elseif kind == "users" then
+			paintutils.drawImage(userIcon, 2, 6)
+		end
 		term.setCursorPos(1, 4)
 		term.setBackgroundColor(uiCol["textboxBg"])
 		term.setTextColor(uiCol["textboxTxt"])
@@ -424,9 +431,14 @@ function interceptAction(e, btn, x, y)
 	end
 end
 
+function loadImages()
+	octocat = paintutils.loadImage("CraftedCart/img/octocat")
+	userIcon = paintutils.loadImage("CraftedCart/img/user")
+	repoIcon = paintutils.loadImage("CraftedCart/img/repo")
+end
+
 function homeMenu()
 	showBg()
-	octocat = paintutils.loadImage("CraftedCart/images/octocat")
 	paintutils.drawImage(octocat, 2, 3)
 	term.setBackgroundColor(colors.white)
 	term.setTextColor(uiCol["heading"])
@@ -471,6 +483,7 @@ function main()
 	term.setBackgroundColor(uiCol["bg"])
 	term.clear()
 	getDependencies()
+	loadImages()
 	homeMenu()
 end
 
