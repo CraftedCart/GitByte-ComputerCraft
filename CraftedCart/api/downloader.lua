@@ -3,7 +3,6 @@
 --The function to run is getAndInstall(itemTable, showUI, overwrite)
 --Provide an itemTable in the format of
 -- {{"label1", "Download URL 1", "Path to save to 1"}, {"label2", "Download URL 2", "Path to save to 2"}}
---Provide a boolean for showUI
 --Provide a number for overwrite
   --1: Will overwrite files
   --2: Won't overwrite files
@@ -35,7 +34,7 @@ local function setupUi()
   term.setCursorPos(2, 2)
 end
 
-local function cancelDownload()
+local function cancelDownload(msg)
   setupUi()
   term.setBackgroundColor(colours.red)
   term.setTextColor(colours.white)
@@ -47,7 +46,10 @@ local function cancelDownload()
   term.setCursorPos(2, 4)
   term.write("No files have been modified")
 
-  term.setCursorPos(2, 6)
+  if msg then term.setCursorPos(2, 6) end
+  print(msg)
+
+  term.setCursorPos(2, sy - 1)
   term.write("Click anywhere to exit")
 
   os.pullEvent("mouse_click")
@@ -63,7 +65,7 @@ local function installSuccess()
 
   term.setBackgroundColor(colours.white)
   term.setTextColor(colours.black)
-  term.setCursorPos(2, 4)
+  term.setCursorPos(2, sy - 1)
   term.write("Click anywhere to exit")
 
   os.pullEvent("mouse_click")

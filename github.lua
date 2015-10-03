@@ -19,8 +19,13 @@ local uiCol = {
 	["alertTxt"] = colors.black,
 }
 
+--Other Preferences
+local prefs = {
+	["dlLocation"] = "/Downloads"
+}
+
 --Other Variables
-local versionNumber = 10 --TODO: Change whenever I push out a new commit
+local versionNumber = 11 --TODO: Change whenever I push out a new commit
 local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
@@ -79,7 +84,7 @@ function getDependencies()
 	  {"jf-json", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
 	  {"Octocat Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/octocat", "CraftedCart/img/octocat"},
 	  {"User Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/user", "CraftedCart/img/user"},
-	  {"Repo image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"}
+	  {"Repo Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"}
 	}, 2  )
 
 
@@ -127,6 +132,58 @@ function showLoading(msg)
 
 	term.setBackgroundColor(uiCol["bg"])
 	term.setTextColor(uiCol["txt"])
+end
+
+function downloadRepo(fullName)
+	local files = {}
+	local dirs = {}
+	local size = 0
+	local freeSpace = fs.getFreeSpace(prefs["dlLocation"])
+
+	local function getDir(path)
+	  web = http.get("https://api.github.com/repos/" .. fullName .. "/contents" .. path)
+		if web then
+	  	data = json:decode(web.readAll())
+		else
+			return 1
+		end
+
+	  for k, v in pairs(data) do
+	    if v["type"] == "dir" then
+	      table.insert(dirs, prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"])
+	      print("Found Dir: " .. v["path"])
+	      getDir("/" .. v["path"])
+	    elseif v["type"] == "file" then
+
+	      table.insert(files, {v["name"], v["download_url"], prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"]})
+				size = size + v["size"]
+	      print("Found File: " .. v["path"])
+
+				if size > freeSpace then
+					showError("Not enough space on the disk\n Free space on disk: " .. tostring(freeSpace) .. " bytes\n Found " .. tostring(size) .. " or more bytes\n (Probally more)")
+					return false
+				end
+	    end
+	  end
+		return true
+	end
+
+	local returned = getDir("")
+
+	if not returned then
+		return
+	elseif returned == 1 then
+		showError("Resource limit reached")
+	end
+
+	for k, v in pairs(dirs) do
+	  fs.makeDir(v)
+	end
+
+	downloader.getAndInstall(files, 4)
+
+	homeMenu()
+
 end
 
 --[[
@@ -330,6 +387,10 @@ function showSearch(query, kind)
 					--If users search and entry exists
 					showProfile(searchData["items"][y - 3]["login"])
 					break
+				elseif kind == "repositories" and searchData["items"][y - 3] then
+					downloadRepo(searchData["items"][y - 3]["full_name"])
+					--TODO! DISP
+					break
 				end
 			end
 		end
@@ -369,10 +430,10 @@ function showError(resCode)
 	term.setCursorPos(2, 3)
 	term.write("Oh No!")
 	term.setCursorPos(2, 5)
-	term.write("Error " .. tostring(resCode))
+	print("Error: " .. tostring(resCode))
 
 	while true do
-		e, btn, x, y = os.pullevent()
+		e, btn, x, y = os.pullEvent()
 		interceptAction(e, btn, x, y)
 	end
 end
