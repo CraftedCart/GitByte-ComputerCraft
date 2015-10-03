@@ -20,11 +20,12 @@ local uiCol = {
 }
 
 --Other Variables
-local versionNumber = 9 --TODO: Change whenever I push out a new commit
+local versionNumber = 10 --TODO: Change whenever I push out a new commit
+local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
 local owner = "CraftedCart"
-local website = "github.com/CraftedCart/Gitter-ComputerCraft"
+local website = "github.com/CraftedCart/GitByte-ComputerCraft"
 local contributors = {
 	"Jeffrey Friedl for providing jf-json"
 }
@@ -62,25 +63,25 @@ end
 --Loads the JSON parser
 --It the JSON parser doesn't exist, it downloads it
 function getDependencies()
-	--Get JSON Parser
+	--Get Downloader
 	--TODO: Dependencies - Change URL to use stable branch once that exists
-	--TODO: Split this function into a separate API
-	if not fs.exists("CraftedCart/api/jsonParser.lua")then
-		showLoading("Downloading jf-json API")
-		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/api/jsonParser.lua")
-		file = fs.open("CraftedCart/api/jsonParser.lua", "w")
+	if not fs.exists("CraftedCart/api/downloader.lua")then
+		showLoading("Downloading downloader API")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/downloader.lua")
+		file = fs.open("CraftedCart/api/downloader.lua", "w")
 		file.write(webData.readAll())
 		file.close()
 	end
 
-	--Get Octocat image
-	if not fs.exists("CraftedCart/img/octocat")then
-		showLoading("Downloading octocat image")
-		webData = http.get("https://raw.githubusercontent.com/CraftedCart/Gitter-Github-client-for-ComputerCraft/dev/CraftedCart/img/octocat")
-		file = fs.open("CraftedCart/img/octocat", "w")
-		file.write(webData.readAll())
-		file.close()
-	end
+	os.loadAPI("CraftedCart/api/downloader.lua")
+	downloader = _G["downloader.lua"]
+	downloader.getAndInstall({
+	  {"jf-json", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
+	  {"Octocat Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/octocat", "CraftedCart/img/octocat"},
+	  {"User Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/user", "CraftedCart/img/user"},
+	  {"Repo image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"}
+	}, 2  )
+
 
 	json = (loadfile "CraftedCart/api/jsonParser.lua")()
 end
@@ -94,13 +95,13 @@ function showBg()
 	term.setBackgroundColor(uiCol["navbarBg"])
 	term.setTextColor(uiCol["navbarTxt"])
 	term.clearLine()
-	term.write("Gitter ")
+	term.write(appName .. " ")
 	term.setBackgroundColor(uiCol["btnBg"])
 	term.setTextColor(uiCol["btnTxt"])
 	term.write("Home")
-	term.setCursorPos(14, 1)
+	term.setCursorPos(15, 1)
 	term.write("Search Repos")
-	term.setCursorPos(27, 1)
+	term.setCursorPos(28, 1)
 	term.write("Search Users")
 
 	--Change to default colours
@@ -380,7 +381,7 @@ function showAbout() --The about page
 	showBg()
 	term.setCursorPos(2, 3)
 	term.setTextColor(uiCol["heading"])
-	term.write("Gitter " .. version)
+	term.write(appName .. " " .. version)
 	term.setTextColor(uiCol["sidetxt"])
 	term.write(" #" .. versionNumber)
 	term.setCursorPos(2, 4)
@@ -418,13 +419,13 @@ y
 ]]
 function interceptAction(e, btn, x, y)
 	if e == "mouse_click" then
-		if x >= 9 and x <= 12 and y == 1 then
+		if x >= 10 and x <= 13 and y == 1 then
 			--User clicked the home button
 			homeMenu()
-		elseif x >= 14 and x <= 25 and y == 1 then
+		elseif x >= 15 and x <= 26 and y == 1 then
 			--User clicked the search repos button
 			askSearch("repositories")
-		elseif x >= 27 and x <= 38 and y == 1 then
+		elseif x >= 28 and x <= 39 and y == 1 then
 			--User clicked the search users button
 			askSearch("users")
 		end
@@ -445,7 +446,7 @@ function homeMenu()
 	term.setCursorPos(10, 17)
 	term.write("Octocat")
 	term.setCursorPos(26, 4)
-	term.write("Gitter")
+	term.write(appName)
 	term.setCursorPos(26, 5)
 	term.write("Github client")
 	term.setCursorPos(26, 7)
@@ -455,7 +456,7 @@ function homeMenu()
 	term.setCursorPos(26, 9)
 	term.write(" Search for Users ")
 	term.setCursorPos(26, h - 1)
-	term.write(" About Gitter     ")
+	term.write(" About " .. appName .. "    ")
 
 	--Get user input
 	while true do
@@ -470,7 +471,7 @@ function homeMenu()
 				--User clicked on search for repos
 				askSearch("users")
 			elseif x >= 26 and x <= 43 and y == h - 1 then
-				--User clicked on about Gitter
+				--User clicked on about GitByte
 				showAbout()
 			end
 		end

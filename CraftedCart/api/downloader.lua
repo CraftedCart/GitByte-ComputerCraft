@@ -219,15 +219,20 @@ function getAndInstall(itemTable, overwrite)
   end
 
   --Install
+  local filesChanged = 0
+
   for k, v in pairs(itemTable) do
 
     if v[4] then
       file = fs.open(v[3], "w")
       file.write(v[4].readAll())
       file.close()
+      filesChanged = filesChanged + 1
     end
   end
 
-  installSuccess()
+  if filesChanged > 0 then
+    installSuccess()
+  end
   return true
 end
