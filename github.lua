@@ -25,7 +25,7 @@ local prefs = {
 }
 
 --Other Variables
-local versionNumber = 11 --TODO: Change whenever I push out a new commit
+local versionNumber = 12 --TODO: Change whenever I push out a new commit
 local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
@@ -70,7 +70,7 @@ end
 function getDependencies()
 	--Get Downloader
 	--TODO: Dependencies - Change URL to use stable branch once that exists
-	if not fs.exists("CraftedCart/api/downloader.lua")then
+	if not fs.exists("CraftedCart/api/downloader.lua") then
 		showLoading("Downloading downloader API")
 		webData = http.get("https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/downloader.lua")
 		file = fs.open("CraftedCart/api/downloader.lua", "w")
@@ -134,46 +134,41 @@ function showLoading(msg)
 	term.setTextColor(uiCol["txt"])
 end
 
-function downloadRepo(fullName)
+--[[
+PARAMETERS
+fullName - String - Required
+	The full name of the repo to download (Eg: CraftedCart/GitByte-ComputerCraft)
+branch - String - Required
+	Which branch to download
+]]
+function downloadRepo(fullName, branch)
 	local files = {}
 	local dirs = {}
 	local size = 0
 	local freeSpace = fs.getFreeSpace(prefs["dlLocation"])
+	local data
 
-	local function getDir(path)
-	  web = http.get("https://api.github.com/repos/" .. fullName .. "/contents" .. path)
-		if web then
-	  	data = json:decode(web.readAll())
-		else
-			return 1
-		end
-
-	  for k, v in pairs(data) do
-	    if v["type"] == "dir" then
-	      table.insert(dirs, prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"])
-	      print("Found Dir: " .. v["path"])
-	      getDir("/" .. v["path"])
-	    elseif v["type"] == "file" then
-
-	      table.insert(files, {v["name"], v["download_url"], prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"]})
-				size = size + v["size"]
-	      print("Found File: " .. v["path"])
-
-				if size > freeSpace then
-					showError("Not enough space on the disk\n Free space on disk: " .. tostring(freeSpace) .. " bytes\n Found " .. tostring(size) .. " or more bytes\n (Probally more)")
-					return false
-				end
-	    end
-	  end
-		return true
+	local web = http.get("https://api.github.com/repos/" .. fullName .. "/git/trees/" .. branch .. "?recursive=1")
+	if web then
+		data = json:decode(web.readAll())
+	else
+		return showError("Couldn't access the file tree\n You might have hit the resoucre limit")
 	end
 
-	local returned = getDir("")
+	for k, v in pairs(data["tree"]) do
+	  if v["type"] == "tree" then
+	    table.insert(dirs, prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"])
+	  elseif v["type"] == "blob" then
+	    table.insert(files,{v["path"], "https://raw.githubusercontent.com/" .. fullName .. "/" .. branch .. "/" .. v["path"], prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"]})
+			size = size + v["size"]
+	  end
+	end
 
-	if not returned then
-		return
-	elseif returned == 1 then
-		showError("Resource limit reached")
+	if size > freeSpace then
+		return showError("Not enough free space\n\n " ..
+		"Free space avaliable: " .. tostring(freeSpace) .. " bytes\n " ..
+		"Size of repo: " .. tostring(size) .. " bytes\n\n " ..
+		"That's " .. tostring(size - freeSpace) .. " more bytes that what you have")
 	end
 
 	for k, v in pairs(dirs) do
@@ -182,7 +177,7 @@ function downloadRepo(fullName)
 
 	downloader.getAndInstall(files, 4)
 
-	homeMenu()
+	return homeMenu()
 
 end
 
@@ -281,7 +276,7 @@ PARAMETERS
 query - String - Required
 	The string of text you want to search Github for
 kind - String - Required
-	The kind of search you want to do - Can be "repositories", "code", "issues", "users"
+	The kind of search you want to do - Can be "repositories", "users"
 ]]
 --TODO: Search - Add issues search
 --TODO: Search - Add pages/scrolling
@@ -385,18 +380,21 @@ function showSearch(query, kind)
 				--User clicked an entry
 				if kind == "users" and searchData["items"][y - 3] then
 					--If users search and entry exists
-					showProfile(searchData["items"][y - 3]["login"])
-					break
+					return showProfile(searchData["items"][y - 3]["login"])
 				elseif kind == "repositories" and searchData["items"][y - 3] then
-					downloadRepo(searchData["items"][y - 3]["full_name"])
+					return downloadRepo(searchData["items"][y - 3]["full_name"], searchData["items"][y - 3]["default_branch"]) --TODO: Change to ask for a branch, and maybe show readme and info
 					--TODO! DISP
-					break
 				end
 			end
 		end
 	end
 end
 
+--[[
+PARAMETERS
+kind - String - Required
+	The kind of search you want to do - Can be "repositories", "users"
+]]
 function askSearch(kind)
 	showBg()
 	if kind then
@@ -413,9 +411,7 @@ function askSearch(kind)
 		term.setTextColor(uiCol["textboxTxt"])
 		term.clearLine()
 		query = read()
-		showSearch(query, kind)
-	else
-		--TODO: Search - Menu system for selecting kind of search
+		return showSearch(query, kind)
 	end
 end
 
@@ -434,7 +430,7 @@ function showError(resCode)
 
 	while true do
 		e, btn, x, y = os.pullEvent()
-		interceptAction(e, btn, x, y)
+		return interceptAction(e, btn, x, y)
 	end
 end
 
@@ -482,13 +478,13 @@ function interceptAction(e, btn, x, y)
 	if e == "mouse_click" then
 		if x >= 10 and x <= 13 and y == 1 then
 			--User clicked the home button
-			homeMenu()
+			return homeMenu()
 		elseif x >= 15 and x <= 26 and y == 1 then
 			--User clicked the search repos button
-			askSearch("repositories")
+			return askSearch("repositories")
 		elseif x >= 28 and x <= 39 and y == 1 then
 			--User clicked the search users button
-			askSearch("users")
+			return askSearch("users")
 		end
 	end
 end
@@ -502,7 +498,7 @@ end
 function homeMenu()
 	showBg()
 	paintutils.drawImage(octocat, 2, 3)
-	term.setBackgroundColor(colors.white)
+	term.setBackgroundColor(uiCol["bg"])
 	term.setTextColor(uiCol["heading"])
 	term.setCursorPos(10, 17)
 	term.write("Octocat")
@@ -527,13 +523,13 @@ function homeMenu()
 			--Detect if button was clicked on
 			if x >= 26 and x <= 43 and y == 7 then
 				--User clicked on search for repos
-				askSearch("repositories")
+				return askSearch("repositories")
 			elseif x >= 26 and x <= 43 and y == 9 then
 				--User clicked on search for repos
-				askSearch("users")
+				return askSearch("users")
 			elseif x >= 26 and x <= 43 and y == h - 1 then
 				--User clicked on about GitByte
-				showAbout()
+				return showAbout()
 			end
 		end
 	end
@@ -546,7 +542,7 @@ function main()
 	term.clear()
 	getDependencies()
 	loadImages()
-	homeMenu()
+	return homeMenu()
 end
 
 --Prevent non printable characters from crashing the program
