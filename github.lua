@@ -17,6 +17,10 @@ local uiCol = {
 	["btnTxt"] = colors.black,
 	["alertBg"] = colors.yellow,
 	["alertTxt"] = colors.black,
+	["progBarActive"] = colors.lime,
+	["progBarBg"] = colors.gray,
+	["progBarOutline"] = colors.lightGray,
+	["progBarTxt"] = colors.black,
 }
 
 --Other Preferences
@@ -25,15 +29,19 @@ local prefs = {
 }
 
 --Other Variables
-local versionNumber = 12 --TODO: Change whenever I push out a new commit
+local versionNumber = 13 --TODO: Change whenever I push out a new commit
 local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
 local owner = "CraftedCart"
 local website = "github.com/CraftedCart/GitByte-ComputerCraft"
 local contributors = {
-	"Jeffrey Friedl for providing jf-json"
+	"Jeffrey Friedl for providing the jf-json API",
+	"Minebuild02 for providing the base64 API"
 }
+local authUsername
+local authToken
+local isAuthed = false
 
 
 --[[
@@ -81,14 +89,37 @@ function getDependencies()
 	os.loadAPI("CraftedCart/api/downloader.lua")
 	downloader = _G["downloader.lua"]
 	downloader.getAndInstall({
-	  {"jf-json", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
+	  {"jf-json API", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
 	  {"Octocat Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/octocat", "CraftedCart/img/octocat"},
 	  {"User Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/user", "CraftedCart/img/user"},
-	  {"Repo Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"}
+	  {"Repo Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"},
+		{"Base64 API", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/base64.lua", "CraftedCart/api/base64.lua"}
 	}, 2  )
 
 
 	json = (loadfile "CraftedCart/api/jsonParser.lua")()
+	os.loadAPI("CraftedCart/api/base64.lua")
+	base64 = _G["base64.lua"]
+end
+
+function checkRateLimit()
+	showLoading()
+	if isAuthed then
+		web = http.get("https://api.github.com/rate_limit", {["Authorization"] = authToken})
+	else
+		web = http.get("https://api.github.com/rate_limit")
+	end
+	data = json:decode(web.readAll())
+	return data
+end
+
+function hitRateLimit()
+	showError("You've hit the rate limit\n\n " ..
+	"The GitHub API enforces a limit to the amount of\n " ..
+	"actions that you can do within a certain\n " ..
+	"time frame\n\n " ..
+	"You've hit the limit, so you need to wait\n " ..
+	"before using " .. appName .. " again")
 end
 
 function showBg()
@@ -148,7 +179,7 @@ function downloadRepo(fullName, branch)
 	local freeSpace = fs.getFreeSpace(prefs["dlLocation"])
 	local data
 
-	local web = http.get("https://api.github.com/repos/" .. fullName .. "/git/trees/" .. branch .. "?recursive=1")
+	local web = http.get("https://api.github.com/repos/" .. fullName .. "/git/trees/" .. branch .. "?recursive=1", {["Authorization"] = authToken})
 	if web then
 		data = json:decode(web.readAll())
 	else
@@ -191,39 +222,45 @@ function showProfile(username)
 	showLoading()
 
 	--Get profile data from Github's API
-	webData = http.get("https://api.github.com/users/" .. username)
+	webData = http.get("https://api.github.com/users/" .. username, {["Authorization"] = authToken})
 	if webData then
 		profileData = json:decode(webData.readAll())
 		profileResCode = webData.getResponseCode()
 		webData.close()
 	else
-		showError("Unknown")
-		return
+		local rate = checkRateLimit()
+		if rate["resources"]["core"]["remaining"] == 0 then
+			return hitRateLimit()
+		else
+			return showError("Unknown")
+		end
 	end
 
 	--Check if the response is ok
 	if profileResCode ~= 200 then
 		--Error
-		showError(profileResCode)
-		return
+		return showError(profileResCode)
 	end
 
 	--Get profile repo data from Github's API
-	webData = http.get("https://api.github.com/users/" .. username .. "/repos")
+	webData = http.get("https://api.github.com/users/" .. username .. "/repos", {["Authorization"] = authToken})
 	if webData then
 		repoData = json:decode(webData.readAll())
 		repoResCode = webData.getResponseCode()
 		webData.close()
 	else
-		showError("Unknown")
-		return
+		local rate = checkRateLimit()
+		if rate["resources"]["core"]["remaining"] == 0 then
+			return hitRateLimit()
+		else
+			return showError("Unknown")
+		end
 	end
 
 	--Check if the response is ok
 	if repoResCode ~= 200 then
 		--Error
-		showError(repoResCode)
-		return
+		return showError(repoResCode)
 	end
 
 	showBg()
@@ -243,31 +280,89 @@ function showProfile(username)
 		term.write("Location Hidden")
 	end
 
-	--Display Repos
-	term.setTextColor(uiCol["heading"])
-	term.setCursorPos(2, 6)
-	term.write("Repositories")
+	local function displayUserRepos(offset, length)
+		--Display Repos
+		term.setBackgroundColor(uiCol["bg"])
+		term.setTextColor(uiCol["heading"])
+		term.setCursorPos(2, 6)
+		term.write("Repositories")
 
-	for k, v in pairs(repoData) do
-		if k + 6 == h - 1 then
-			break
-		end
-		term.setCursorPos(2, k + 6)
-		term.setTextColor(uiCol["txt"])
-		term.write(v["name"])
-		term.setTextColor(uiCol["sidetxt"])
-		if v["description"] then
-			if string.len(v["description"]) < w - string.len(v["name"]) - 3 then
-				term.write(" " .. v["description"])
-			else
-				term.write(" " .. string.sub(v["description"], 1, w - string.len(v["name"]) - 6) .. "...")
+		for k, v in pairs(repoData) do
+			if k + 6 == h - 1 then
+				break
+			end
+
+			if repoData[k + offset] then
+				term.setCursorPos(2, k + 6)
+				term.setTextColor(uiCol["txt"])
+				term.clearLine()
+				term.write(repoData[k + offset]["name"])
+				term.setTextColor(uiCol["sidetxt"])
+				if repoData[k + offset]["description"] then
+					if string.len(repoData[k + offset]["description"]) < w - string.len(repoData[k + offset]["name"]) - 3 then
+						term.write(" " .. repoData[k + offset]["description"])
+					else
+						term.write(" " .. string.sub(repoData[k + offset]["description"], 1, w - string.len(repoData[k + offset]["name"]) - 6) .. "...")
+					end
+				end
 			end
 		end
+
+		term.setCursorPos(2, h)
+		term.setBackgroundColor(uiCol["navbarBg"])
+		term.setTextColor(uiCol["navbarTxt"])
+		term.clearLine()
+		if h - 8 + offset > length then
+			term.write("Showing items " .. tostring(offset + 1) .. " - " .. tostring(length) .. " / " .. tostring(length))
+		else
+			term.write("Showing items " .. tostring(offset + 1) .. " - " .. tostring(h - 8 + offset) .. " / " .. tostring(length))
+		end
+
+		term.setCursorPos(w - 5, h)
+		term.setBackgroundColor(uiCol["btnBg"])
+		term.setTextColor(uiCol["btnTxt"])
+		term.write("/\\")
+
+		term.setCursorPos(w - 2, h)
+		term.setBackgroundColor(uiCol["btnBg"])
+		term.setTextColor(uiCol["btnTxt"])
+		term.write("\\/")
 	end
 
+	local scrollOffset = 0
+	local length = table.getn(repoData)
 	while true do
+		displayUserRepos(scrollOffset, length)
+
 		e, btn, x, y = os.pullEvent()
+
 		interceptAction(e, btn, x, y)
+		if e == "mouse_click" then
+			if x >= w - 5 and x <= w - 4 and y == h then
+				--Scroll up clicked
+				if scrollOffset ~= 0 then
+					scrollOffset = scrollOffset - 1
+				end
+
+			elseif x >= w - 2 and x <= w - 1 and y == h then
+				--Scroll down clicked
+				if h - 8 + scrollOffset < length then
+					scrollOffset = scrollOffset + 1
+				end
+			end
+		elseif e == "mouse_scroll" then
+			if btn == -1 then
+				--Scroll up clicked
+				if scrollOffset ~= 0 then
+					scrollOffset = scrollOffset - 1
+				end
+			elseif btn == 1 then
+				--Scroll down clicked
+				if h - 8 + scrollOffset < length then
+					scrollOffset = scrollOffset + 1
+				end
+			end
+		end
 	end
 end
 
@@ -276,7 +371,7 @@ PARAMETERS
 query - String - Required
 	The string of text you want to search Github for
 kind - String - Required
-	The kind of search you want to do - Can be "repositories", "users"
+	The kind of search you want to do - Can be "repositories", "users", "code", "issues"
 ]]
 --TODO: Search - Add issues search
 --TODO: Search - Add pages/scrolling
@@ -285,7 +380,7 @@ function showSearch(query, kind)
 	showLoading()
 
 	--Get 100 entries of search data from Github's API
-	webData = http.get("https://api.github.com/search/" .. kind .. "?per_page=100&q=" .. textutils.urlEncode(query))
+	webData = http.get("https://api.github.com/search/" .. kind .. "?per_page=100&q=" .. textutils.urlEncode(query), {["Authorization"] = authToken})
 	if webData then
 		searchData = json:decode(webData.readAll())
 		searchResCode = webData.getResponseCode()
@@ -430,7 +525,7 @@ function showError(resCode)
 
 	while true do
 		e, btn, x, y = os.pullEvent()
-		return interceptAction(e, btn, x, y)
+		interceptAction(e, btn, x, y)
 	end
 end
 
@@ -458,6 +553,161 @@ function showAbout() --The about page
 	end
 	while true do
 		e, btn, x, y = os.pullEvent()
+		interceptAction(e, btn, x, y)
+	end
+end
+
+function showSettings() --TODO: Implement a settings page
+	showBg()
+	term.setCursorPos(2, 3)
+	term.setTextColor(uiCol["heading"])
+	term.write("Settings")
+	term.setCursorPos(2, 5)
+	term.setTextColor(uiCol["txt"])
+	term.write("TODO!")
+
+	while true do
+		e, btn, x, y = os.pullEvent()
+		interceptAction(e, btn, x, y)
+	end
+end
+
+local function logIn()
+	showBg()
+
+	term.setCursorPos(2, 3)
+	term.setTextColor(uiCol["heading"])
+	term.write("Log in to GitHub")
+	term.setCursorPos(2, 5)
+	term.setTextColor(uiCol["txt"])
+	print("Other CC programs shoudln't be able to access\n " ..
+	"your username and password, only " .. appName .. " by\n " ..
+	"default, however you should take caution. DO NOT\n " ..
+	"ENTER YOUR USERNAME AND PASSWORD IF YOU ARE\n " ..
+	"PLAYING ON A SERVER. OTHER CC APPS MAY BE ABLE TO\n " ..
+	"ACCESS YOU LOGIN DETAILS if they modify\n " ..
+	"http.get()")
+
+	term.setCursorPos(2, 13)
+	term.write("Username")
+	term.setCursorPos(2, 16)
+	term.write("Password")
+
+	term.setCursorPos(2, 17)
+	term.setTextColour(uiCol["textboxTxt"])
+	term.setBackgroundColour(uiCol["textboxBg"])
+	term.clearLine()
+	term.setCursorPos(2, 14)
+	term.setTextColour(uiCol["textboxTxt"])
+	term.setBackgroundColour(uiCol["textboxBg"])
+	term.clearLine()
+
+	local username = read()
+	term.setCursorPos(2, 17)
+	local password = read("*")
+	local token = "Basic " .. base64.encode(username .. ":" .. password)
+	showLoading()
+	local web = http.get("https://api.github.com/user", {["Authorization"] = token}, {["Authorization"] = authToken})
+	if web then
+		--Auth'd Successfully
+		data = json:decode(web.readAll())
+		authToken = token
+		authUsername = data["login"]
+		isAuthed = true
+		return
+	else
+		--Failed to Auth
+		showError("Failed to authenticate\n\n " ..
+		"Check that you didn't make a typo\n\n " ..
+		"After a certain number of failiures, Github will\n " ..
+		"reject all log in attempts for a while")
+		return
+	end
+end
+
+local function showAuthenticate()
+	showBg()
+	term.setCursorPos(2, 3)
+	term.setTextColor(uiCol["heading"])
+	term.write("Authenticate with GitHub")
+	term.setCursorPos(2, 5)
+	term.setTextColor(uiCol["txt"])
+	print("Authenticating increases your core rate limit\n " ..
+	"from 60 to 5000 and your search rate limit from\n " ..
+	"10 to 30. These limits reset on a timer.")
+
+	term.setCursorPos(2, 9)
+	if isAuthed then
+		term.write("Logged in as ")
+		term.setTextColour(uiCol["username"])
+		term.write(authUsername)
+	else
+		term.write("Not logged in")
+	end
+
+	term.setCursorPos(2, 11)
+	term.setBackgroundColour(uiCol["btnBg"])
+	term.setTextColour(uiCol["btnTxt"])
+	if isAuthed then
+		term.write(" Log Out          ")
+	else
+		term.write(" Log In           ")
+	end
+
+
+	rate = checkRateLimit()
+	term.setBackgroundColor(uiCol["progBarOutline"])
+	term.setTextColor(uiCol["progBarTxt"])
+
+	for i = 5, 0, -1 do
+		term.setCursorPos(2, h - i)
+		term.clearLine()
+	end
+
+	term.setCursorPos(2, h - 5)
+	term.write(rate["resources"]["core"]["remaining"] .. " / " .. rate["resources"]["core"]["limit"] .. " Core tokens remaining")
+	term.setCursorPos(2, h - 2)
+	term.write(rate["resources"]["search"]["remaining"] .. " / " .. rate["resources"]["search"]["limit"] .. " Search tokens remaining")
+
+	local barLength = math.ceil(rate["resources"]["core"]["remaining"] / rate["resources"]["core"]["limit"] * w - 2)
+	term.setCursorPos(2, h - 4)
+	term.setBackgroundColor(uiCol["progBarActive"])
+	for i = 1, barLength do
+		term.write(" ")
+	end
+	term.setBackgroundColor(uiCol["progBarBg"])
+	for i = barLength, w - 3 do
+		term.write(" ")
+	end
+
+	barLength = math.ceil(rate["resources"]["search"]["remaining"] / rate["resources"]["search"]["limit"] * w - 2)
+	term.setCursorPos(2, h - 1)
+	term.setBackgroundColor(uiCol["progBarActive"])
+	for i = 1, barLength do
+		term.write(" ")
+	end
+	term.setBackgroundColor(uiCol["progBarBg"])
+	for i = barLength, w - 3 do
+		term.write(" ")
+	end
+
+	while true do
+		e, btn, x, y = os.pullEvent()
+
+		if e == "mouse_click" then
+			if x >= 2 and x <= 20 and y == 11 then
+				--User clicked Log In/Log Out
+				if isAuthed then
+					isAuthed = false
+					authUsername = nil
+					authToken = nil
+				else
+					logIn()
+				end
+				return showAuthenticate()
+			end
+		end
+
 		interceptAction(e, btn, x, y)
 	end
 end
@@ -514,6 +764,10 @@ function homeMenu()
 	term.write(" Search for Users ")
 	term.setCursorPos(26, h - 1)
 	term.write(" About " .. appName .. "    ")
+	term.setCursorPos(26, h - 3)
+	term.write(" Settings         ")
+	term.setCursorPos(26, h - 5)
+	term.write(" Log in           ")
 
 	--Get user input
 	while true do
@@ -530,6 +784,12 @@ function homeMenu()
 			elseif x >= 26 and x <= 43 and y == h - 1 then
 				--User clicked on about GitByte
 				return showAbout()
+			elseif x >= 26 and x <= 43 and y == h - 3 then
+				--User clicked on Settings
+				showSettings()
+			elseif x >= 26 and x <= 42 and y == h - 5 then
+				--User clicked on Authenticate
+				showAuthenticate()
 			end
 		end
 	end
