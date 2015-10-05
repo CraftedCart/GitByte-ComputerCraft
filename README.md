@@ -1,5 +1,5 @@
-# GitByte - Github client for ComputerCraft
-Hello there! This is the code repository for CraftedCart's Github client for the Minecraft mod ComputerCraft
+# GitByte - GitHub client for ComputerCraft
+Hello there! This is the code repository for CraftedCart's GitHub client for the Minecraft mod ComputerCraft
 
 **This is the dev branch, meaning stuff is under development and you're likley to find tonnes of bugs, incomplete features, and items only accessible by modifying the code**
 
