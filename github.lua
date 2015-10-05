@@ -173,27 +173,49 @@ branch - String - Required
 	Which branch to download
 ]]
 function downloadRepo(fullName, branch)
+	showLoading()
 	local files = {}
 	local dirs = {}
 	local size = 0
 	local freeSpace = fs.getFreeSpace(prefs["dlLocation"])
 	local data
 
-	local web = http.get("https://api.github.com/repos/" .. fullName .. "/git/trees/" .. branch .. "?recursive=1", {["Authorization"] = authToken})
-	if web then
-		data = json:decode(web.readAll())
-	else
-		return showError("Couldn't access the file tree\n You might have hit the resoucre limit")
+	local function findFiles(gitUrl, fullRepoName, repoBranch, dlPrefix)
+		local web = http.get(gitUrl, {["Authorization"] = authToken})
+		if web then
+			data = json:decode(web.readAll())
+		else
+			return showError("Couldn't access the file tree\n You might have hit the resoucre limit")
+		end
+
+		if dlPrefix then
+			dlPrefix = dlPrefix .. "/"
+		else
+			dlPrefix = ""
+		end
+
+		for k, v in pairs(data["tree"]) do
+	  	if v["type"] == "tree" then
+				--It's a directory
+	    	table.insert(dirs, prefs["dlLocation"] .. "/" .. fullName .. "/" .. dlPrefix .. v["path"])
+	  	elseif v["type"] == "blob" then
+				--It's a file
+	    	table.insert(files,{v["path"], "https://raw.githubusercontent.com" .. fullRepoName .. "/" .. repoBranch .. "/" .. v["path"], prefs["dlLocation"] .. "/" .. fullName .. "/" .. dlPrefix .. v["path"]})
+				size = size + v["size"]
+			elseif v["type"] == "commit" then
+				--It's a submodule
+				web = http.get("https://api.github.com/repos" .. fullRepoName .. "/contents/" .. v["path"] .. "?ref=" .. repoBranch, {["Authorization"] = authToken})
+				local subData = json:decode(web.readAll())
+				local subFullName = subData["submodule_git_url"]:sub(19)
+				web = http.get("https://api.github.com/repos" .. subFullName, {["Authorization"] = authToken})
+				local subRepoData = json:decode(web.readAll())
+				local subDefaultBranch = subRepoData["default_branch"] --Assume the default branch (IDK how to get the right branch)
+				findFiles(subData["git_url"] .. "?recursive=true", subFullName, subDefaultBranch, v["path"])
+	  	end
+		end
 	end
 
-	for k, v in pairs(data["tree"]) do
-	  if v["type"] == "tree" then
-	    table.insert(dirs, prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"])
-	  elseif v["type"] == "blob" then
-	    table.insert(files,{v["path"], "https://raw.githubusercontent.com/" .. fullName .. "/" .. branch .. "/" .. v["path"], prefs["dlLocation"] .. "/" .. fullName .. "/" .. v["path"]})
-			size = size + v["size"]
-	  end
-	end
+	findFiles("https://api.github.com/repos/" .. fullName .. "/git/trees/" .. branch .. "?recursive=1", "/" .. fullName, branch)
 
 	if size > freeSpace then
 		return showError("Not enough free space\n\n " ..
