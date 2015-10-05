@@ -1,0 +1,3 @@
+[submodule "CC-Common"]
+	path = CraftedCart
+	url = https://github.com/CraftedCart/CC-Common

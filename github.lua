@@ -29,7 +29,7 @@ local prefs = {
 }
 
 --Other Variables
-local versionNumber = 13 --TODO: Change whenever I push out a new commit
+local versionNumber = 14 --TODO: Change whenever I push out a new commit
 local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
@@ -104,13 +104,11 @@ end
 
 function checkRateLimit()
 	showLoading()
-	if isAuthed then
-		web = http.get("https://api.github.com/rate_limit", {["Authorization"] = authToken})
-	else
-		web = http.get("https://api.github.com/rate_limit")
-	end
+	web = http.get("https://api.github.com/rate_limit", {["Authorization"] = authToken})
 	data = json:decode(web.readAll())
-	return data
+	coreReset = json:decode(http.get("http://www.convert-unix-time.com/api?timestamp=" .. tostring(data["resources"]["core"]["reset"])).readAll())
+	searchReset = json:decode(http.get("http://www.convert-unix-time.com/api?timestamp=" .. tostring(data["resources"]["search"]["reset"])).readAll())
+	return data, coreReset, searchReset
 end
 
 function hitRateLimit()
@@ -139,6 +137,8 @@ function showBg()
 	term.write("Search Repos")
 	term.setCursorPos(28, 1)
 	term.write("Search Users")
+	term.setCursorPos(w, 1)
+	term.write("X")
 
 	--Change to default colours
 	term.setBackgroundColor(uiCol["bg"])
@@ -243,7 +243,7 @@ function showProfile(username)
 	end
 
 	--Get profile repo data from Github's API
-	webData = http.get("https://api.github.com/users/" .. username .. "/repos", {["Authorization"] = authToken})
+	webData = http.get("https://api.github.com/users/" .. username .. "/repos?per_page=100", {["Authorization"] = authToken})
 	if webData then
 		repoData = json:decode(webData.readAll())
 		repoResCode = webData.getResponseCode()
@@ -655,22 +655,26 @@ local function showAuthenticate()
 	end
 
 
-	rate = checkRateLimit()
+	rate, coreReset, searchReset = checkRateLimit()
 	term.setBackgroundColor(uiCol["progBarOutline"])
 	term.setTextColor(uiCol["progBarTxt"])
 
-	for i = 5, 0, -1 do
+	for i = 6, 0, -1 do
 		term.setCursorPos(2, h - i)
 		term.clearLine()
 	end
 
-	term.setCursorPos(2, h - 5)
+	term.setCursorPos(2, h - 6)
 	term.write(rate["resources"]["core"]["remaining"] .. " / " .. rate["resources"]["core"]["limit"] .. " Core tokens remaining")
+	term.setCursorPos(2, h - 4)
+	term.write("Reset: " .. coreReset["utcDate"] .. " UTC")
 	term.setCursorPos(2, h - 2)
 	term.write(rate["resources"]["search"]["remaining"] .. " / " .. rate["resources"]["search"]["limit"] .. " Search tokens remaining")
+	term.setCursorPos(2, h)
+	term.write("Reset: " .. searchReset["utcDate"] .. " UTC")
 
 	local barLength = math.ceil(rate["resources"]["core"]["remaining"] / rate["resources"]["core"]["limit"] * w - 2)
-	term.setCursorPos(2, h - 4)
+	term.setCursorPos(2, h - 5)
 	term.setBackgroundColor(uiCol["progBarActive"])
 	for i = 1, barLength do
 		term.write(" ")
@@ -735,6 +739,9 @@ function interceptAction(e, btn, x, y)
 		elseif x >= 28 and x <= 39 and y == 1 then
 			--User clicked the search users button
 			return askSearch("users")
+		elseif x == w and y == 1 then
+			--User clicked the quit button
+			error("quit")
 		end
 	end
 end
@@ -814,4 +821,17 @@ function term.write(text)
 end
 
 --Start the whole program
-main()
+ok, err = pcall(main)
+
+if not ok then
+	--Program errored or quit
+	if err:sub(err:len() - 3) == "quit" then
+		term.setBackgroundColor(colours.black)
+		term.setTextColor(colours.white)
+		term.clear()
+		term.setCursorPos(1, 1)
+	else
+		term.setTextColor(colours.red)
+		print("I'm sorry :(\n" .. err)
+	end
+end
