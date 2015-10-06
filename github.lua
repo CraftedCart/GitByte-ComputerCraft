@@ -21,6 +21,7 @@ local uiCol = {
 	["progBarBg"] = colors.gray,
 	["progBarOutline"] = colors.lightGray,
 	["progBarTxt"] = colors.black,
+	["filePath"] = colors.purple,
 }
 
 --Other Preferences
@@ -29,7 +30,7 @@ local prefs = {
 }
 
 --Other Variables
-local versionNumber = 14 --TODO: Change whenever I push out a new commit
+local versionNumber = 15 --TODO: Change whenever I push out a new commit
 local appName = "GitByte"
 local version = "Public Alpha"
 local branch = "dev"
@@ -42,6 +43,9 @@ local contributors = {
 local authUsername
 local authToken
 local isAuthed = false
+local license = "MIT License"
+local globalPrefsLocation = "/CraftedCart/prefs/global.ccprf"
+local gitbytePrefsLocation = "/CraftedCart/prefs/gitbyte.ccprf"
 
 
 --[[
@@ -73,6 +77,75 @@ function safeString(text)
 	return string.char(unpack(newText))
 end
 
+function loadPrefs()
+	local function mergeNewPrefs()
+		downloader.getAndInstall({
+			{"New Global Preferences", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/prefs/global.ccprf", "CraftedCart/tmp/prefs/global.ccprf"},
+			{"New " .. appName .. " Preferences", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/prefs/gitbyte.ccprf", "CraftedCart/tmp/prefs/gitbyte.ccprf"},
+			{"New Default Theme", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/theme/default.ccthm", "CraftedCart/theme/default.ccthm"},
+		}, 1)
+
+		local function openAndMerge(oldLocation, newLocation)
+			if fs.exists(oldLocation) then
+				oldPrefsFile = fs.open(oldLocation, "r")
+				oldPrefs = textutils.unserialize(oldPrefsFile.readAll())
+				oldPrefsFile.close()
+
+				newPrefsFile = fs.open(newLocation, "r")
+				newPrefs = textutils.unserialize(newPrefsFile.readAll())
+				newPrefsFile.close()
+
+				for k, v in pairs(oldPrefs) do
+					newPrefs[k] = v
+				end
+
+				oldPrefsFile = fs.open(oldLocation, "w")
+				oldPrefsFile.write(textutils.serialize(newPrefs))
+				oldPrefsFile.close()
+			end
+		end
+
+		openAndMerge(globalPrefsLocation, "CraftedCart/tmp/prefs/global.ccprf")
+		openAndMerge(gitbytePrefsLocation, "CraftedCart/tmp/prefs/gitbyte.ccprf")
+
+		return loadPrefs()
+	end
+
+	local globalPrefsFile = fs.open(globalPrefsLocation, "r")
+	globalPrefs = textutils.unserialize(globalPrefsFile.readAll())
+	globalPrefsFile.close()
+
+	if globalPrefs["theme"] then
+		if fs.exists("CraftedCart/theme/" .. globalPrefs["theme"]) then
+			--Load the theme
+			local themeFile = fs.open("CraftedCart/theme/" .. globalPrefs["theme"], "r")
+			local newTheme = textutils.unserialize(themeFile.readAll())
+			themeFile.close()
+
+			--Apply the loaded theme
+			for k, v in pairs(newTheme) do
+				uiCol[k] = v
+			end
+		else
+			--Reset theme to default and fetch new prefs
+			local gblFile = fs.open(globalPrefsLocation, "r")
+			local gblPrefs = textutils.unserialize(gblFile.readAll())
+			gblFile.close()
+			gblPrefs["theme"] = "default.ccthm"
+			gblFile = fs.open(globalPrefsLocation, "w")
+			gblFile.write(textutils.serialize(gblPrefs))
+			gblFile.close()
+			return mergeNewPrefs()
+		end
+	else
+		return mergeNewPrefs()
+	end
+
+	if fs.exists("CraftedCart/tmp") then
+		fs.delete("CraftedCart/tmp")
+	end
+end
+
 --Loads the JSON parser
 --It the JSON parser doesn't exist, it downloads it
 function getDependencies()
@@ -80,7 +153,7 @@ function getDependencies()
 	--TODO: Dependencies - Change URL to use stable branch once that exists
 	if not fs.exists("CraftedCart/api/downloader.lua") then
 		showLoading("Downloading downloader API")
-		webData = http.get("https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/downloader.lua")
+		webData = http.get("https://raw.githubusercontent.com/CraftedCart/CC-Common/master/api/downloader.lua")
 		file = fs.open("CraftedCart/api/downloader.lua", "w")
 		file.write(webData.readAll())
 		file.close()
@@ -89,11 +162,14 @@ function getDependencies()
 	os.loadAPI("CraftedCart/api/downloader.lua")
 	downloader = _G["downloader.lua"]
 	downloader.getAndInstall({
-	  {"jf-json API", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
-	  {"Octocat Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/octocat", "CraftedCart/img/octocat"},
-	  {"User Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/user", "CraftedCart/img/user"},
-	  {"Repo Image", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/img/repo", "CraftedCart/img/repo"},
-		{"Base64 API", "https://raw.githubusercontent.com/CraftedCart/GitByte-ComputerCraft/dev/CraftedCart/api/base64.lua", "CraftedCart/api/base64.lua"}
+	  {"jf-json API", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/api/jsonParser.lua", "CraftedCart/api/jsonParser.lua"},
+	  {"Octocat Image", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/img/octocat", "CraftedCart/img/octocat"},
+	  {"User Image", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/img/user", "CraftedCart/img/user"},
+	  {"Repo Image", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/img/repo", "CraftedCart/img/repo"},
+		{"Base64 API", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/api/base64.lua", "CraftedCart/api/base64.lua"},
+		{"Global CraftedCart Preferences", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/prefs/global.ccprf", "CraftedCart/prefs/global.ccprf"},
+		{"GitByte Preferences", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/prefs/gitbyte.ccprf", "CraftedCart/prefs/gitbyte.ccprf"},
+		{"Default Theme", "https://raw.githubusercontent.com/CraftedCart/CC-Common/master/theme/default.ccthm", "CraftedCart/theme/default.ccthm"},
 	}, 2  )
 
 
@@ -564,13 +640,15 @@ function showAbout() --The about page
 	term.setCursorPos(2, 5)
 	term.write(website)
 	term.setCursorPos(2, 7)
-	term.write("By " .. owner)
-	term.setCursorPos(2, 9)
+	term.write("Copyright (c) " .. owner)
+	term.setCursorPos(2, 8)
+	term.write("Released under the " .. license)
+	term.setCursorPos(2, 10)
 	term.setTextColor(uiCol["heading"])
 	term.write("Contributors")
 	term.setTextColor(uiCol["txt"])
 	for k, v in pairs(contributors) do
-		term.setCursorPos(2, k + 9)
+		term.setCursorPos(2, k + 10)
 		term.write(v)
 	end
 	while true do
@@ -579,14 +657,24 @@ function showAbout() --The about page
 	end
 end
 
-function showSettings() --TODO: Implement a settings page
+function showSettings()
 	showBg()
 	term.setCursorPos(2, 3)
 	term.setTextColor(uiCol["heading"])
 	term.write("Settings")
 	term.setCursorPos(2, 5)
+	term.setTextColor(uiCol["btnTxt"])
+	term.setBackgroundColor(uiCol["btnBg"])
+	term.write(" Edit Theme             ") --TODO: Make a theme API/app
+	term.setCursorPos(2, 7)
+	term.write(" Edit Download Location ") --TODO: Make a download location picker (File/Folder picker API?)
+
+	term.setCursorPos(2, 9)
 	term.setTextColor(uiCol["txt"])
-	term.write("TODO!")
+	term.setBackgroundColor(uiCol["bg"])
+	term.write("Currently: ")
+	term.setTextColor(uiCol["filePath"])
+	term.write(prefs["dlLocation"])
 
 	while true do
 		e, btn, x, y = os.pullEvent()
@@ -830,6 +918,7 @@ function main()
 	term.setBackgroundColor(uiCol["bg"])
 	term.clear()
 	getDependencies()
+	loadPrefs()
 	loadImages()
 	return homeMenu()
 end
